@@ -11,6 +11,7 @@ require(leaflet)
 require(rgeos)
 require(raster)
 require(maptools)
+require(RColorBrewer)
 
 #############################
 ######  Import and pre-process Data
@@ -38,9 +39,9 @@ for (p in 90:99){
 }
 
 
-mapClusters = function(cluster, QualToMap, QuantToMap){
+mapClusters = function(cluster, QualToMap, QuantToMap, circles, sizeParam){
   cluster@data$WhatToMap_qual = cluster@data[, QualToMap]
-#  cluster@data$WhatToMap_quant = cluster@data[, QuantToMap]
+  cluster@data$WhatToMap_quant = cluster@data[, QuantToMap]
   
   if(QualToMap == "squareID"){
     n = length(cluster@data$squareID)
@@ -58,7 +59,7 @@ mapClusters = function(cluster, QualToMap, QuantToMap){
   cluster@data$VarToCut = as.numeric(cluster@data$WhatToMap_qual)
   ColorRamp = "Reds"
   Breaks = c(0, 1, 2, 4, 6, 10, 20)
-  t = gsub(WhatToMap,pattern = "_", replacement = " ")
+  t = gsub(QualToMap,pattern = "_", replacement = " ")
   vPal6 <- brewer.pal(n = 6, name = ColorRamp)
   
   cluster@data$WhatToMap_qual <-
@@ -83,7 +84,7 @@ mapClusters = function(cluster, QualToMap, QuantToMap){
   
   cluster@data$WhatToMap_qual = ifelse(is.na(cluster@data$WhatToMap_qual), "white", cluster@data$WhatToMap_qual)
   
-
+if(circles == T){
   leaflet(cluster) %>% addProviderTiles("CartoDB.Positron") %>%
     clearShapes() %>% setView(lng = -0.1, lat = 51.5,zoom = 10) %>%
     addPolygons(stroke = F,
@@ -94,11 +95,27 @@ mapClusters = function(cluster, QualToMap, QuantToMap){
       popup = ~VarToCut,
       options = popupOptions(maxWidth = 100)
       ) %>%
-    # addCircleMarkers(~long, ~lat, radius = ~WhatToMap_quant, col=~WhatToMap_qual, popup = ~VarToCut) %>%
+     addCircleMarkers(~long, ~lat, radius = ~sqrt(WhatToMap_quant)/sizeParam) %>%
     addLegend("bottomright",
       colors = vPal6,
       labels = vLegendBox,
       title = t)
+} else {
+    leaflet(cluster) %>% addProviderTiles("CartoDB.Positron") %>%
+      clearShapes() %>% setView(lng = -0.1, lat = 51.5,zoom = 10) %>%
+      addPolygons(stroke = F,
+                  smoothFactor = 0,
+                  fillColor = ~WhatToMap_qual,
+                  fillOpacity = 0.5,
+                  layerId = ~squareID,
+                  popup = ~VarToCut,
+                  options = popupOptions(maxWidth = 100)
+      ) %>%
+       addLegend("bottomright",
+                colors = vPal6,
+                labels = vLegendBox,
+                title = t)
+}
   }
 }
 
@@ -132,13 +149,16 @@ shinyServer(function(input, output, session) {
     selected_year = input$year
     selected_qual_variable = input$qualvariable
     selected_quant_variable = input$quantvariable
+    circles = input$circles
     if(selected_qual_variable == "squareID"){
       qual_var_to_map = selected_qual_variable
     } else {
       qual_var_to_map = paste0(selected_qual_variable, "_", selected_year)
       }
     quant_var_to_map = paste0(selected_quant_variable, "_", selected_year)
-    mapClusters(cluster = cluster_map, QualToMap = qual_var_to_map, QuantToMap = quant_var_to_map)
+    param = input$normalisation
+    mapClusters(cluster = cluster_map, QualToMap = qual_var_to_map, QuantToMap = quant_var_to_map, 
+                circles = circles, sizeParam = param)
   })
   
 })
